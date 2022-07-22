@@ -13,16 +13,16 @@ https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-mac-an
 
 To install Mosquitto Broker:
 
-'sudo apt install -y mosquitto mosquitto-clients'
+`sudo apt install -y mosquitto mosquitto-clients`
 
 To make Mosquitto broker automatically start with the boot:
 
-'sudo systemctl enable mosquitto.service
+`sudo systemctl enable mosquitto.service`
 
 To test the installation by running the following command:
 
-'mosquitto -v'
+`mosquitto -v`
 
 We can stop the moquitto broker by the following command:
 
-'sudo systemctl stop mosquitto.service'
+`sudo systemctl stop mosquitto.service`
