@@ -1,6 +1,6 @@
 # Hand-Hygiene-Tracking-System
-In this project, we are using ESP32 as a beacon and as a client.
-And connect the client to RPi by MQTT protocol to communicate with each other.
+In this project, we are going to use ESP as a BLE beacon and BLE scanner, which beacons are monitored by scanners through Bluetooth Low Energy.
+The scanners send the data to the Raspberry Pi through the MQTT protocol, so that the Raspberry Pi collects the information as a database and sends the necessary commands through this protocol.
 We use Mosquitto as the broker of MQTT.
 
 Libraries for esp32:
@@ -8,7 +8,9 @@ Libraries for esp32:
 - PubSubClient
 
 Install the ESP32 board in Arduino IDE:
+
 Library: esp32 by Espressif Systems
+
 https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-mac-and-linux-instructions/
 
 To install Mosquitto Broker:
@@ -19,10 +21,10 @@ To make Mosquitto broker automatically start with the boot:
 
 `sudo systemctl enable mosquitto.service`
 
-To test the installation by running the following command:
+Test the installation:
 
 `mosquitto -v`
 
-We can stop the moquitto broker by the following command:
+Stop moquitto broker:
 
 `sudo systemctl stop mosquitto.service`
