@@ -4,14 +4,10 @@ The scanners send the data to the Raspberry Pi through the MQTT protocol, so tha
 We use Mosquitto as the broker of MQTT.
 
 Libraries for esp32:
-- ESP32
-- PubSubClient
-
-Install the ESP32 board in Arduino IDE:
-
-Library: esp32 by Espressif Systems
-
-https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-mac-and-linux-instructions/
+1. esp32 by Espressif Systems
+- Installation guide [here](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-mac-and-linux-instructions/)
+2. NimBLE-Arduino
+3. PubSubClient
 
 To install Mosquitto Broker:
 
@@ -28,3 +24,7 @@ Test the installation:
 Stop moquitto broker:
 
 `sudo systemctl stop mosquitto.service`
+
+Sketch uses 552149 bytes (42%) of program storage space. Maximum is 1310720 bytes.
+
+With just use of mqtt code, the sketch uses 52% of program storage space and using ble scanner example from the original library, will uses 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino).
