@@ -1,1 +1,3 @@
 paho-mqtt
+matplotlib
+requests
