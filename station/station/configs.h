@@ -9,7 +9,7 @@ const char* password = "a135246789";
 const char* mqtt_server = "192.168.247.77";
 const int mqtt_port = 1883;
 
-const int station_id = 1;
+const char* station_id = "1";
 
 const int beacon_scan_timeout = 1; //In seconds
 

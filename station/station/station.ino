@@ -40,22 +40,13 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     void onResult(BLEAdvertisedDevice *advertisedDevice)
     {
       if (advertisedDevice->haveRSSI()) {
-        itoa(advertisedDevice->getRSSI(), rssi_string, 10);
-        buffer[buffer_index].rssi = advertisedDevice->getRSSI();
+        if (strcmp(advertisedDevice->getName(), "Haylou GT1 XR") == 0) {
+          itoa(advertisedDevice->getRSSI(), rssi_string, 10);
+          buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
+          strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
+          buffer_index++;
+        }
       }
-      else {
-        itoa(0, rssi_string, 10);
-        buffer[buffer_index].rssi = 0;
-      }
-      Serial.printf("MAC: %s \r\n", advertisedDevice->getAddress().toString().c_str());
-      client.publish("esp32/ble/MAC", advertisedDevice->getAddress().toString().c_str());
-      Serial.printf("name: %s \r\n", advertisedDevice->getName().c_str());
-      client.publish("esp32/ble/name", advertisedDevice->getName().c_str());
-      Serial.printf("rssi: %d \r\n", advertisedDevice->getRSSI());
-      client.publish("esp32/ble/rssi", rssi_string);
-      
-      strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
-      buffer_index++;
     }
 };
 
@@ -108,7 +99,7 @@ void checkWifi() {
 void checkMQTT() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("<ESP8266Client>")) {
+    if (client.connect(station_id)) {
       Serial.println("connected");
       client.subscribe("esp32/led");
     } else {
@@ -121,67 +112,73 @@ void checkMQTT() {
   }
 }
 
-void initialBLE() {
-  BLEDevice::init("");
-  pBLEScan = BLEDevice::getScan(); //create new scan
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setActiveScan(true); //active scan uses more power, but get results faster
-}
-
 void scanBeacons() {
+  // for this error:
+  // "Guru meditation error: Core 1 panic'ed (LoadProhinited)"
+  // we need to define pBLEScan pointer each time
   Serial.println("Beacon scanning...");
-  BLEScanResults foundDevices = pBLEScan->start(beacon_scan_timeout, false);
+  pBLEScan = BLEDevice::getScan(); //create 1
+  MyAdvertisedDeviceCallbacks cb;
+  pBLEScan->setAdvertisedDeviceCallbacks(&cb);
+  pBLEScan->setActiveScan(true); //active scan uses more power, but get results faster
+  BLEScanResults foundDevices = pBLEScan->start(beacon_scan_timeout);
   Serial.print("Devices found: ");
   Serial.println(foundDevices.getCount());
   Serial.println("-----------------------------------------------\r\n");
-  pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+//  pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+  pBLEScan->stop();
 }
 
 void setup()
 {
   Serial.begin(115200);
-  initialBLE();
+  BLEDevice::init("");
   connectWifi();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(MyMqttDeviceCallback);
   pinMode(ledPin, OUTPUT);
 }
 
+void sendFromBuffer() {
+  bool result;
+  String payload = "{\"beacons\":[";
+  for (uint8_t i = 0; i < buffer_index; i++) {
+    payload += "{\"ID\":\"";
+    payload += String(buffer[i].name);  // FIXME: change it to id
+    payload += "\",\"RSSI\":\"";
+    payload += String(buffer[i].rssi);
+    payload += "\"}";
+    if (i < buffer_index - 1) {
+      payload += ',';
+    }
+  }
+  // SenML ends. Add this stations ID
+  payload += "],\"station\":\"";
+  payload += String(station_id);
+  payload += "\"}";
+
+  // Print and publish payload
+//  Serial.print("Payload length: ");
+//  Serial.println(payload.length());
+//  Serial.println(payload);
+
+  payload.getBytes(message_char_buffer, payload.length() + 1);
+  result = client.publish("esp32/scan", message_char_buffer, payload.length(), false);
+//  Serial.print("PUB Result: ");
+//  Serial.println(result);
+}
+
 void loop()
 {
-  bool result;
   scanBeacons();
   checkWifi();
   checkMQTT();
   client.loop();
-  if (buffer_index) {
-    String payload = "{\"beacons\":[";
-    for (uint8_t i = 0; i < buffer_index; i++) {
-      payload += "{\"ID\":\"";
-      payload += String(buffer[i].name);  // FIXME: change it to id
-      payload += "\",\"RSSI\":\"";
-      payload += String(buffer[i].rssi);
-      payload += "\"}";
-      if (i < buffer_index - 1) {
-        payload += ',';
-      }
+  if (WiFi.status() == WL_CONNECTED && client.connected()) {
+    if (buffer_index) {
+      sendFromBuffer();
+      //Start over the scan loop
+      buffer_index = 0;
     }
-    // SenML ends. Add this stations MAC
-    payload += "],\"station\":\"";
-    payload += String(station_id);
-    payload += "\"}";
-  
-    // Print and publish payload
-    Serial.print("Payload length: ");
-    Serial.println(payload.length());
-    Serial.println(payload);
-  
-    payload.getBytes(message_char_buffer, payload.length() + 1);
-    result = client.publish("/beacons/office", message_char_buffer, payload.length(), false);
-    Serial.print("PUB Result: ");
-    Serial.println(result);
-  
-    //Start over the scan loop
-    buffer_index = 0;
   }
 }
