@@ -60,26 +60,27 @@ def led_blinking():
         # info.wait_for_publish()
         time.sleep(1)
 
-data_lst = []
-fig, ax = plt.subplots()
+if __name__ == "__main__":
+    data_lst = []
+    fig, ax = plt.subplots()
 
-client = mqtt.Client('Gateway')
-client.on_publish = on_publish
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-client.message_callback_add('esp32/scan', on_message)
+    client = mqtt.Client('Gateway')
+    client.on_publish = on_publish
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.message_callback_add('esp32/scan', on_message)
 
-client.connect(mqtt_server, mqtt_port)
-client.subscribe('esp32/#')
-client.loop_start()
+    client.connect(mqtt_server, mqtt_port)
+    client.subscribe('esp32/#')
+    client.loop_start()
 
-led_blinking_thread = threading.Thread(
-    target=led_blinking,
-    daemon=True
-)
-led_blinking_thread.start()
+    led_blinking_thread = threading.Thread(
+        target=led_blinking,
+        daemon=True
+    )
+    led_blinking_thread.start()
 
-ani = animation.FuncAnimation(
-    fig, animate, frames=100, fargs=(data_lst,), interval=10
-)
-plt.show()
+    ani = animation.FuncAnimation(
+        fig, animate, frames=100, fargs=(data_lst,), interval=10
+    )
+    plt.show()

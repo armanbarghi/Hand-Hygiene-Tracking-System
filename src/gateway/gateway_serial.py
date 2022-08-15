@@ -1,5 +1,3 @@
-from base64 import decode
-from distutils.filelist import translate_pattern
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import serial.tools.list_ports as port_list
