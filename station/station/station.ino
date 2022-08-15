@@ -20,7 +20,6 @@ BLEScan *pBLEScan;
 // LED Pin
 const int ledPin = 2;
 
-long lastMsg = 0;
 int beacon_rssi;
 char beacon_name[20];
 char rssi_string[3];
