@@ -34,3 +34,16 @@ Stop moquitto broker:
 sudo systemctl stop mosquitto.service
 ```
 With just use of mqtt code, the sketch uses 52% of program storage space and using ble scanner example from the original library, will uses 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino) that only uses 42% of program storage space.
+
+Installation
+------------
+
+First of all we need to create a virtual environment:
+```sh
+python3 -m venv venv
+```
+Then we will install all the requierments libraries
+```sh
+pip3 install -r requierments.txt
+```
+
