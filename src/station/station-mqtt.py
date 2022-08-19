@@ -78,7 +78,7 @@ if __name__ == "__main__":
         target=led_blinking,
         daemon=True
     )
-    led_blinking_thread.start()
+    # led_blinking_thread.start()
 
     ani = animation.FuncAnimation(
         fig, animate, frames=100, fargs=(data_lst,), interval=10
