@@ -38,15 +38,15 @@ void setup() {
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
-  pAdvertising->setMinPreferred(0x12);
+//  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+//  pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(100);
-  led_state = not(led_state);
-  digitalWrite(LED_PIN, led_state);
+//  delay(100);
+//  led_state = not(led_state);
+//  digitalWrite(LED_PIN, led_state);
 }
