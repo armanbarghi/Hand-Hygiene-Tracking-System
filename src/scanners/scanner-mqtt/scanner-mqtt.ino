@@ -15,8 +15,6 @@
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-BLEScan *pBLEScan;
-
 // LED Pin
 const int ledPin = 2;
 
@@ -30,7 +28,7 @@ typedef struct {
   int rssi;
 } Beacon;
 
-Beacon buffer[10];
+Beacon buffer[max_buffer_len];
 uint8_t buffer_index = 0;
 uint8_t message_char_buffer[MQTT_MAX_PACKET_SIZE];
 
@@ -38,8 +36,13 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice *advertisedDevice)
     {
+      extern uint8_t buffer_index;
+      extern Beacon buffer[];
+      if (buffer_index >= max_buffer_len) {
+        return;
+      }
       if (advertisedDevice->haveRSSI()) {
-        if (strcmp(advertisedDevice->getName(), "Haylou GT1 XR") == 0) {
+        if (strcmp(advertisedDevice->getName().c_str(), "Haylou GT1 XR") == 0) {
           itoa(advertisedDevice->getRSSI(), rssi_string, 10);
           buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
           strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
@@ -69,6 +72,16 @@ void MyMqttDeviceCallback(char* topic, byte* message, unsigned int length) {
       digitalWrite(ledPin, LOW);
     }
   }
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  BLEDevice::init("");
+  connectWifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(MyMqttDeviceCallback);
+  pinMode(ledPin, OUTPUT);
 }
 
 void connectWifi() {
@@ -116,26 +129,18 @@ void scanBeacons() {
   // "Guru meditation error: Core 1 panic'ed (LoadProhinited)"
   // we need to define pBLEScan pointer each time
   Serial.println("Beacon scanning...");
-  pBLEScan = BLEDevice::getScan(); //create 1
+  BLEScan* pBLEScan = BLEDevice::getScan();
   MyAdvertisedDeviceCallbacks cb;
   pBLEScan->setAdvertisedDeviceCallbacks(&cb);
   pBLEScan->setActiveScan(true); //active scan uses more power, but get results faster
-  BLEScanResults foundDevices = pBLEScan->start(beacon_scan_timeout);
+  pBLEScan->start(beacon_scan_timeout);
   Serial.print("Devices found: ");
-  Serial.println(foundDevices.getCount());
-  Serial.println("-----------------------------------------------\r\n");
-//  pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+  for (uint8_t i = 0; i < buffer_index; i++) {
+    Serial.print(buffer[i].name);
+    Serial.print(" : ");
+    Serial.println(buffer[i].rssi);
+  }
   pBLEScan->stop();
-}
-
-void setup()
-{
-  Serial.begin(115200);
-  BLEDevice::init("");
-  connectWifi();
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(MyMqttDeviceCallback);
-  pinMode(ledPin, OUTPUT);
 }
 
 void sendFromBuffer() {
@@ -156,20 +161,15 @@ void sendFromBuffer() {
   payload += String(station_id);
   payload += "\"}";
 
-  // Print and publish payload
-//  Serial.print("Payload length: ");
-//  Serial.println(payload.length());
-//  Serial.println(payload);
-
   payload.getBytes(message_char_buffer, payload.length() + 1);
   result = client.publish("esp32/scan", message_char_buffer, payload.length(), false);
-//  Serial.print("PUB Result: ");
-//  Serial.println(result);
 }
 
 void loop()
 {
+  delay(1000);
   scanBeacons();
+  delay(1000);
   checkWifi();
   checkMQTT();
   client.loop();
