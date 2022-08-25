@@ -3,8 +3,11 @@ import paho.mqtt.client as mqtt
 import json
 import time
 import sys
+import csv
+import os
 import threading
 import structlog
+from enum import Enum, auto
 
 
 logger = structlog.get_logger(__name__)
@@ -13,7 +16,12 @@ class StationController:
     MQTT_SERVER = '192.168.247.77'
     MQTT_PORT = 1883
 
+    class State(Enum):
+        ENV_MODEL_FIND = auto()
+
     def __init__(self) -> None:
+        self.state = self.State.ENV_MODEL_FIND
+        
         self.client = mqtt.Client('Gateway')
 
         self.queue = Queue()
@@ -59,9 +67,25 @@ class StationController:
                     for beacon in message['beacons']:
                         if beacon['ID'] == 'Haylou GT1 XR':
                             self.data_lst.append(int(beacon['RSSI']))
+                    if self.state == self.State.ENV_MODEL_FIND:
+                        self.write_in_file("output.csv", message)
                 except Exception as error:
                     logger.error("can not find beacons", error=error)
             time.sleep(0.1)
+
+    def write_in_file(self, file_name, message):
+        try:
+            file_exists = os.path.isfile(file_name)
+            with open(file_name, "a") as file:
+                writer = csv.DictWriter(file, fieldnames=['ID','RSSI','station'])
+                if not file_exists:
+                    writer.writeheader()
+                for beacon in message['beacons']:
+                    beacon.update({'station': message['station']})
+                    writer.writerow(beacon)
+                file.close()
+        except Exception as error:
+            logger.error("can not write in file", error=error)
 
     # region callbacks        
     def _on_connect(self, client, userdata, flags, rc):
@@ -82,9 +106,8 @@ class StationController:
     def _on_message(self, client, userdata, msg):
         try:
             decoded = msg.payload.decode('utf-8')
-            message = json.loads(decoded)
-            logger.info('decoded data', topic=msg.topic, message=message)
-            self.queue.put(message)
+            logger.info('decoded data', topic=msg.topic, decoded=decoded)
+            self.queue.put(json.loads(decoded))
         except Exception as error:
             logger.error("decoding message failed", error=error)
     # endregion callbacks
