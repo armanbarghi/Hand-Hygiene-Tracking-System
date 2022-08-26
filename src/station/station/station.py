@@ -1,5 +1,8 @@
 from queue import Queue
 import paho.mqtt.client as mqtt
+import serial.tools.list_ports as port_list
+from serial import SerialException
+import serial
 import json
 import time
 import sys
@@ -15,6 +18,9 @@ logger = structlog.get_logger(__name__)
 class StationController:
     MQTT_SERVER = "127.0.0.1"
     MQTT_PORT = 1883
+    MAX_SERIAL_BUFFER_LEN = 100
+    HEAD = b'HEAD'
+    FOOT = b'FOOT'
     MODEL_MAX_SAMPLE = 10
 
     class State(Enum):
@@ -26,23 +32,31 @@ class StationController:
 
         # ENV_MODEL state flags
         self.model_sample_counter = 0
-        self.current_distance = 1
+        self.current_distance = 2
         #######################
-        
-        self.client = mqtt.Client('Gateway')
 
         self.queue = Queue()
         self.data_lst = []
 
-        self.queue_handler_thread = threading.Thread(
-            target=self.queue_handler,
+        ### MQTT section
+        self.client = mqtt.Client('Gateway')
+        self.initialize_client()
+        self.client.loop_start()
+
+        ### Serial section
+        self.rx_buffer = b''
+        self.ser_ready = False
+        self.ser = None
+        self.initialize_serial()
+        serial_recieve_thread = threading.Thread(
+            target=self._serial_recieve,
             daemon=True
         )
-        self.queue_handler_thread.start()
-        
-        self.initialize_client()
-        self.client.loop_forever()
+        serial_recieve_thread.start()
 
+        self.queue_handler()
+
+    # region mqtt
     def initialize_client(self):
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
@@ -61,10 +75,89 @@ class StationController:
             except Exception as error:
                 if attempts >= 3:
                     logger.error("mqtt connection failed")
-                    sys.exit(1)
+                    return
                 attempts += 1
                 logger.error("", attempt=attempts, error=error)
             time.sleep(1)
+
+    def _on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            logger.info('MQTT connected', rc=rc)
+            client.connected_flag=True #flag to indicate success
+        else:
+            logger.error('MQTT can not connect', rc=rc)
+            client.bad_connection_flag=True
+            sys.exit(1)
+
+    def _on_disconnect(self, client, userdata, rc):
+        logger.error('MQTT disconnected', rc=rc)
+
+    def _on_publish(self, client, userdata, mid):
+        ...
+
+    def _on_message(self, client, userdata, msg):
+        try:
+            decoded = msg.payload.decode('utf-8')
+            logger.info('decoded data', topic=msg.topic, decoded=decoded)
+            self.queue.put(json.loads(decoded))
+        except Exception as error:
+            logger.error("decoding message failed", error=error)
+    # endregion mqtt
+
+    # region serial
+    def initialize_serial(self):
+        attempts = 0
+        try:
+            while attempts < 3:
+                attempts += 1
+                ports = [tuple(p) for p in list(port_list.comports())]
+                logger.info("searching for serial ports", ports=ports, attempt=attempts)
+                if ports:
+                    port_name = ports[0][0]
+                    if "ttyUSB" in port_name:
+                        self.ser = serial.Serial(
+                            port=port_name,
+                            baudrate=115200,
+                            timeout=None
+                        )
+                        if self.ser.is_open:
+                            self.ser.close()
+                        self.ser.open()
+                        self.ser_ready = True
+                        logger.info("serial connected", port=port_name)
+                        return
+                time.sleep(1)
+            logger.error("serial connection failed")
+        except SerialException as error:
+            logger.error("unable to open serial", error=error)
+            sys.exit(1)
+    
+    def _serial_recieve(self):
+        while self.ser_ready:
+            in_waiting = self.ser.in_waiting
+            if in_waiting:
+                self.rx_buffer += self.ser.read_all()
+                self.serial_decode()
+                if len(self.rx_buffer) > self.MAX_SERIAL_BUFFER_LEN:
+                    self.rx_buffer = b''
+            time.sleep(0.01)
+    
+    def serial_decode(self):
+        if not self.HEAD in self.rx_buffer:
+            return
+        self.rx_buffer = self.rx_buffer[self.rx_buffer.find(self.HEAD):]
+        if not self.FOOT in self.rx_buffer:
+            return
+        footer_index = self.rx_buffer.find(self.FOOT)
+        serial_data = self.rx_buffer[len(self.HEAD):footer_index]
+        self.rx_buffer = self.rx_buffer[footer_index+len(self.FOOT):]
+        try:
+            decoded = serial_data.decode('utf-8')
+            logger.info("serial read", decoded=decoded)
+            self.queue.put(json.loads(decoded))   
+        except Exception as error:
+            logger.error("decoding message failed", error=error)
+    # endregion serial
 
     def queue_handler(self):
         while True:
@@ -102,28 +195,3 @@ class StationController:
                 file.close()
         except Exception as error:
             logger.error("can not write in file", error=error)
-
-    # region callbacks        
-    def _on_connect(self, client, userdata, flags, rc):
-        if rc == 0:
-            logger.info('MQTT connected', rc=rc)
-            client.connected_flag=True #flag to indicate success
-        else:
-            logger.error('MQTT can not connect', rc=rc)
-            client.bad_connection_flag=True
-            sys.exit(1)
-
-    def _on_disconnect(self, client, userdata, rc):
-        logger.error('MQTT disconnected', rc=rc)
-
-    def _on_publish(self, client, userdata, mid):
-        ...
-
-    def _on_message(self, client, userdata, msg):
-        try:
-            decoded = msg.payload.decode('utf-8')
-            logger.info('decoded data', topic=msg.topic, decoded=decoded)
-            self.queue.put(json.loads(decoded))
-        except Exception as error:
-            logger.error("decoding message failed", error=error)
-    # endregion callbacks
