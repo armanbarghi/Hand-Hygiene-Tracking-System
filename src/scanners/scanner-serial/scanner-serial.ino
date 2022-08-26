@@ -1,6 +1,6 @@
 #include <string>
 
-#define MQTT_MAX_PACKET_SIZE 2048
+#define MAX_PACKET_SIZE 2048
 
 // Bluetooth LE
 #include "BLEDevice.h"
@@ -25,7 +25,7 @@ typedef struct {
 
 Beacon buffer[max_buffer_len];
 uint8_t buffer_index = 0;
-uint8_t message_char_buffer[MQTT_MAX_PACKET_SIZE];
+uint8_t message_char_buffer[MAX_PACKET_SIZE];
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -63,15 +63,13 @@ void scanBeacons() {
   MyAdvertisedDeviceCallbacks cb;
   pBLEScan->setAdvertisedDeviceCallbacks(&cb);
   pBLEScan->setActiveScan(true); //active scan uses more power, but get results faster
+  pBLEScan->setInterval(100);
+  pBLEScan->setWindow(99);
   pBLEScan->start(beacon_scan_timeout, false);
   pBLEScan->stop();
-  Serial.println("");
-  Serial.print("buffer index: ");
-  Serial.println(buffer_index);
 }
 
 void sendFromBuffer() {
-  bool result;
   String payload = "HEAD{\"beacons\":[";
   for (uint8_t i = 0; i < buffer_index; i++) {
     payload += "{\"ID\":\"";
@@ -93,9 +91,7 @@ void sendFromBuffer() {
 
 void loop()
 {
-//  delay(1000);
   scanBeacons();
-//  delay(1000);
   if (buffer_index) {
     sendFromBuffer();
     //Start over the scan loop
