@@ -81,6 +81,7 @@ void setup()
   connectWifi();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(MyMqttDeviceCallback);
+  checkMQTT();
   pinMode(ledPin, OUTPUT);
 }
 
@@ -167,9 +168,7 @@ void sendFromBuffer() {
 
 void loop()
 {
-  delay(1000);
   scanBeacons();
-  delay(1000);
   checkWifi();
   checkMQTT();
   client.loop();
