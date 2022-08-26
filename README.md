@@ -35,6 +35,21 @@ sudo systemctl stop mosquitto.service
 ```
 With just use of mqtt code, the sketch uses 52% of program storage space and using ble scanner example from the original library, will uses 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino) that only uses 42% of program storage space.
 
+If the connection to the MQTT server is refused, check the configuration file:
+```sh
+cat /etc/mosquitto/conf.d/standard.conf
+```
+It has to be something like this:
+```sh
+listener 1883
+protocol mqtt
+allow_anonymous true
+```
+then restart the mosquitto.service:
+```sh
+sudo systemctl restart mosquitto.service
+```
+
 Installation
 ------------
 
