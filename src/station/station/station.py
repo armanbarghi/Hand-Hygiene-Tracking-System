@@ -13,14 +13,21 @@ from enum import Enum, auto
 logger = structlog.get_logger(__name__)
 
 class StationController:
-    MQTT_SERVER = '192.168.247.77'
+    MQTT_SERVER = "127.0.0.1"
     MQTT_PORT = 1883
+    MODEL_MAX_SAMPLE = 10
 
     class State(Enum):
-        ENV_MODEL_FIND = auto()
+        IDLE = auto()
+        ENV_MODEL = auto()
 
-    def __init__(self) -> None:
-        self.state = self.State.ENV_MODEL_FIND
+    def __init__(self, mode=State.IDLE) -> None:
+        self.state = mode
+
+        # ENV_MODEL state flags
+        self.model_sample_counter = 0
+        self.current_distance = 1
+        #######################
         
         self.client = mqtt.Client('Gateway')
 
@@ -67,22 +74,31 @@ class StationController:
                     for beacon in message['beacons']:
                         if beacon['ID'] == 'Haylou GT1 XR':
                             self.data_lst.append(int(beacon['RSSI']))
-                    if self.state == self.State.ENV_MODEL_FIND:
-                        self.write_in_file("output.csv", message)
                 except Exception as error:
                     logger.error("can not find beacons", error=error)
+                    continue
+
+                if self.state == self.State.ENV_MODEL:
+                    self.model_env_estimator(message)
             time.sleep(0.1)
 
-    def write_in_file(self, file_name, message):
+    def model_env_estimator(self, message):
+        for beacon in message['beacons']:
+            if self.model_sample_counter > self.MODEL_MAX_SAMPLE:
+                logger.info("sampling done", distance=self.current_distance)
+                os._exit(1)
+            beacon.update({'station': message['station'], 'distance': self.current_distance})
+            self.append_in_file("env_model.csv", beacon)
+            self.model_sample_counter += 1
+
+    def append_in_file(self, file_name, content):
         try:
             file_exists = os.path.isfile(file_name)
             with open(file_name, "a") as file:
-                writer = csv.DictWriter(file, fieldnames=['ID','RSSI','station'])
+                writer = csv.DictWriter(file, fieldnames=['ID','RSSI','station', 'distance'])
                 if not file_exists:
                     writer.writeheader()
-                for beacon in message['beacons']:
-                    beacon.update({'station': message['station']})
-                    writer.writerow(beacon)
+                writer.writerow(content)
                 file.close()
         except Exception as error:
             logger.error("can not write in file", error=error)
