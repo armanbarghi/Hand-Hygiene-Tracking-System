@@ -1,8 +1,9 @@
 #include <string>
 
+#define MAX_PACKET_SIZE 2048
+
 // Wifi and MQTT
 #include <WiFi.h>
-#define MQTT_MAX_PACKET_SIZE 2048
 #include <PubSubClient.h>
 
 // Bluetooth LE
@@ -30,7 +31,7 @@ typedef struct {
 
 Beacon buffer[max_buffer_len];
 uint8_t buffer_index = 0;
-uint8_t message_char_buffer[MQTT_MAX_PACKET_SIZE];
+uint8_t message_char_buffer[MAX_PACKET_SIZE];
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
@@ -145,7 +146,6 @@ void scanBeacons() {
 }
 
 void sendFromBuffer() {
-  bool result;
   String payload = "{\"beacons\":[";
   for (uint8_t i = 0; i < buffer_index; i++) {
     payload += "{\"ID\":\"";
@@ -163,7 +163,7 @@ void sendFromBuffer() {
   payload += "\"}";
 
   payload.getBytes(message_char_buffer, payload.length() + 1);
-  result = client.publish("esp32/scan", message_char_buffer, payload.length(), false);
+  client.publish("esp32/scan", message_char_buffer, payload.length(), false);
 }
 
 void loop()
