@@ -57,8 +57,11 @@ First of all we need to create a virtual environment:
 ```sh
 python3 -m venv venv
 ```
-Then we will install all the requierments libraries
+Then we will install all the requierments libraries:
 ```sh
 pip3 install -r requierments.txt
 ```
-
+Then we need to install the ipython kernel for jupyter-notebook:
+```sh
+ipython kernel install --user --name=venv
+```
