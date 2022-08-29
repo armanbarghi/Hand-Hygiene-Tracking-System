@@ -2,3 +2,5 @@ paho-mqtt
 matplotlib
 structlog
 pyserial
+ipykernel
+jupyter
