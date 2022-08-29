@@ -15,7 +15,7 @@ from enum import Enum, auto
 
 logger = structlog.get_logger(__name__)
 
-class StationController:
+class ServerController:
     MQTT_SERVER = "127.0.0.1"
     MQTT_PORT = 1883
     MAX_SERIAL_BUFFER_LEN = 100
@@ -26,14 +26,26 @@ class StationController:
     class State(Enum):
         IDLE = auto()
         ENV_MODEL = auto()
+        WORKING = auto()
+    
+    class Beacon(Enum):
+        IDLE = auto()
+        RED = auto()
+        GREEN = auto()
+        ORANGE = auto()
 
     def __init__(self, mode=State.IDLE) -> None:
         self.state = mode
+        logger.info("server created", state=self.state)
 
-        # ENV_MODEL state flags
+        # ENV_MODEL state fields
         self.model_sample_counter = 0
         self.current_distance = 2
-        #######################
+        ########################
+
+        # WORKING state fields
+        self.beacons = []
+        ######################
 
         self.queue = Queue()
         self.data_lst = []
@@ -163,26 +175,20 @@ class StationController:
         while True:
             if not self.queue.empty():
                 message = self.queue.get()
-                try:
-                    for beacon in message['beacons']:
-                        if beacon['ID'] == 'Haylou GT1 XR':
-                            self.data_lst.append(int(beacon['RSSI']))
-                except Exception as error:
-                    logger.error("can not find beacons", error=error)
-                    continue
+                for beacon in message['beacons']:
+                    if self.state == self.State.ENV_MODEL:
+                        self.model_env_estimator(beacon, message['station'])
+                    if self.state == self.State.WORKING:
+                        self.working_state_handler(beacon['ID'], int(beacon['RSSI']), message['station'])
+            time.sleep(0.01)
 
-                if self.state == self.State.ENV_MODEL:
-                    self.model_env_estimator(message)
-            time.sleep(0.1)
-
-    def model_env_estimator(self, message):
-        for beacon in message['beacons']:
-            if self.model_sample_counter > self.MODEL_MAX_SAMPLE:
-                logger.info("sampling done", distance=self.current_distance)
-                os._exit(1)
-            beacon.update({'station': message['station'], 'distance': self.current_distance})
-            self.append_in_file("env_model.csv", beacon)
-            self.model_sample_counter += 1
+    def model_env_estimator(self, beacon, station):
+        if self.model_sample_counter > self.MODEL_MAX_SAMPLE:
+            logger.info("sampling done", distance=self.current_distance)
+            os._exit(1)
+        beacon.update({'station': station, 'distance': self.current_distance})
+        self.append_in_file("env_model.csv", beacon)
+        self.model_sample_counter += 1
 
     def append_in_file(self, file_name, content):
         try:
@@ -195,3 +201,52 @@ class StationController:
                 file.close()
         except Exception as error:
             logger.error("can not write in file", error=error)
+
+    def working_state_handler(self, beacon_id, beacon_rssi, station):
+        # if beacon_id == 'Haylou GT1 XR':
+        #     self.data_lst.append(beacon_rssi)
+        if self.find_beacon_by_id(beacon_id) is None:
+            self.add_new_beacon(beacon_id)
+        beacon = self.find_beacon_by_id(beacon_id)
+        beacon['stations'][station] = beacon_rssi
+        logger.info("beacon updated", beacons=self.beacons)
+    
+    def check_stations(self, beacon):
+        ...
+
+    def find_beacon_by_id(self, beacon_id):
+        for beacon in self.beacons:
+            if beacon['id'] == beacon_id:
+                return beacon
+        return None
+
+    def add_new_beacon(self, id):
+        beacon = {
+            'id' : id,
+            'status': self.Beacon.IDLE, 
+            'stations': {'1':None, '2':None, '3':None, '4':None},
+            'coordinates': (None,None) 
+        }
+        self.beacons.append(beacon)
+
+    # region sending message to beacon
+    def send_message_to_beacon(self, beacon, message):
+        station = self.find_nearest_station_to_beacon(beacon)
+        self.publish('esp32/'+str(station), message)
+
+    def find_nearest_station_to_beacon(self, beacon):
+        # return min(beacon['stations'])
+        return 1
+    
+    def publish(self, topic, message):
+        payload = message.encode('utf-8')
+        info = self.client.publish(
+            topic=topic,
+            payload=payload,
+            qos=0,
+        )
+        # Because published() is not synchronous,
+        # it returns false while he is not aware of delivery that's why calling wait_for_publish() is mandatory.
+        info.wait_for_publish()
+        logger.info("published", payload=payload, info=info)
+    # endregion sending message to beacon

@@ -1,4 +1,4 @@
-from station.station import StationController as Station
+from server.server import ServerController as Server
 import structlog
 import sys
 
@@ -7,7 +7,7 @@ logger = structlog.get_logger(__name__)
 
 def main():
     try:
-        Station(Station.State.ENV_MODEL)
+        Server(Server.State.WORKING)
     except KeyboardInterrupt as error:
         logger.error("ctrl+C pressed", error=error)
         sys.exit(1)
