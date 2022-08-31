@@ -3,8 +3,9 @@
 About
 -----
 
-In this project, we are going to use ESP as a BLE beacon and BLE scanner, which beacons are monitored by scanners through Bluetooth Low Energy.
-The scanners send the data to the Raspberry Pi through the MQTT protocol, so that the Raspberry Pi collects the information as a database and sends the necessary commands through this protocol.
+In this project, we are going to use ESP as a BLE beacon and BLE stations, which beacons are monitored by 
+stations through Bluetooth Low Energy.
+The stations send the data to the server through the MQTT protocol, so that the server collects the information as a database and sends the necessary commands through this protocol.
 We use Mosquitto as the broker of MQTT.
 
 Libraries for esp32
@@ -28,10 +29,6 @@ sudo systemctl enable mosquitto.service
 Test the installation:
 ```sh
 mosquitto -v
-```
-Stop moquitto broker:
-```sh
-sudo systemctl stop mosquitto.service
 ```
 With just use of mqtt code, the sketch uses 52% of program storage space and using ble scanner example from the original library, will uses 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino) that only uses 42% of program storage space.
 
