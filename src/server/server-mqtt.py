@@ -10,7 +10,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-mqtt_server = '192.168.247.77'
+mqtt_server = "127.0.0.1"
 mqtt_port = 1883
 
 def animate(i, data_lst):
