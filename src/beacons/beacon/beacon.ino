@@ -60,8 +60,9 @@ void setup()
   lastTenth = nowTimeStruct.tv_sec * 10; // Time since last reset as 0.1 second resolution counter
 
   // Create the BLE Device
-  BLEDevice::init("Haylou GT1 XR");
-  // BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_ADV);
+  BLEDevice::init("Project");
+  // Set the Tx Power Level to 9dbm
+  BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_ADV);
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();

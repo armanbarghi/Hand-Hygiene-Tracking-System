@@ -121,6 +121,7 @@ void setup()
 {
   Serial.begin(115200);
   BLEDevice::init("");
+  BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_SCAN);
   connectWifi();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(MyMqttDeviceCallback);
