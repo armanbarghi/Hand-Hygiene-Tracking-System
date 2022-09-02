@@ -40,10 +40,13 @@ static BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 static BLEUUID    charUUID("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
 
 boolean do_beacon_connect = false;
+boolean find_beacon = false;
 boolean beacon_connected = false;
 boolean do_scan = true;
 BLERemoteCharacteristic* pRemoteCharacteristic;
 BLEAdvertisedDevice* beacon = NULL;
+BLEClient* pClient = NULL;
+String command;
 char beacon_to_connect_name[20];
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
@@ -55,21 +58,25 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       if (buffer_index >= max_buffer_len) {
         return;
       }
-      if (advertisedDevice->haveRSSI() && advertisedDevice->haveName()) {
-        if (strcmp(advertisedDevice->getName().c_str(), "Haylou GT1 XR") == 0) {
-          itoa(advertisedDevice->getRSSI(), rssi_string, 10);
-          buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
-          strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
-          buffer_index++;
+      if (advertisedDevice->haveName()) {
+        if (advertisedDevice->haveRSSI()) {
+          if (strcmp(advertisedDevice->getName().c_str(), "Haylou GT1 XR") == 0) {
+            itoa(advertisedDevice->getRSSI(), rssi_string, 10);
+            buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
+            strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
+            buffer_index++;
+          }
         }
-      }
-      if (advertisedDevice->haveName() && strcmp(advertisedDevice->getName().c_str(), beacon_to_connect_name) == 0) {
-        Serial.println("found beacon to connect");
-        BLEDevice::getScan()->stop();
-        Serial.println("stop scanning");
-        beacon = advertisedDevice;
-        do_beacon_connect = true;
-        strcpy(beacon_to_connect_name, "");
+        if (find_beacon) {
+          if (strcmp(advertisedDevice->getName().c_str(), beacon_to_connect_name) == 0) {
+            Serial.println("Found beacon to connect");
+            BLEDevice::getScan()->stop();
+            Serial.println("Scanning stopped");
+            beacon = advertisedDevice;
+            do_beacon_connect = true;
+            find_beacon = false;
+          }
+        }
       }
     }
 };
@@ -108,25 +115,16 @@ void MyMqttDeviceCallback(char* topic, byte* message, unsigned int length) {
   }
   else if (strcmp(topic, temp_topic) == 0) {
     strcpy(beacon_to_connect_name, "Haylou GT1 XR");
+    find_beacon = true;
+    
+    command = messageTemp;
     if (messageTemp == "on") {
       digitalWrite(ledPin, HIGH);
     }
     else if (messageTemp == "off") {
       digitalWrite(ledPin, LOW);
-    } 
+    }
   }
-}
-
-void setup()
-{
-  Serial.begin(115200);
-  BLEDevice::init("");
-  BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_SCAN);
-  connectWifi();
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(MyMqttDeviceCallback);
-  checkMQTT();
-  pinMode(ledPin, OUTPUT);
 }
 
 void connectWifi() {
@@ -219,7 +217,7 @@ bool connectToBeacon() {
   Serial.print("Forming a connection to ");
   Serial.println(beacon_to_connect_name);
   
-  BLEClient* pClient = BLEDevice::createClient();
+  pClient = BLEDevice::createClient();
   Serial.println(" - Created client");
 
   pClient->setClientCallbacks(new MyClientCallback());
@@ -259,9 +257,32 @@ bool connectToBeacon() {
   return true;
 }
 
+void checkBLE() {
+  if (do_beacon_connect) {
+    if (connectToBeacon()) {
+      Serial.println("We are now connected to the BLE Server.");
+    } else {
+      Serial.println("We have failed to connect to the server; there is nothin more we will do.");
+    }
+    do_beacon_connect = false;
+  }
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  BLEDevice::init("");
+  BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_SCAN);
+  connectWifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(MyMqttDeviceCallback);
+  checkMQTT();
+  pinMode(ledPin, OUTPUT);
+}
+
 void loop()
 {
-  if (strcmp(beacon_to_connect_name, "") != 0)
+  if (find_beacon)
   {
     Serial.print("looking for beacon:");
     Serial.println(beacon_to_connect_name);
@@ -279,22 +300,9 @@ void loop()
     }
   }
 
-  if (do_beacon_connect && beacon != NULL) {
-    Serial.println("beacon is not null");
-    if (connectToBeacon()) {
-      Serial.println("We are now connected to the BLE Server.");
-    } else {
-      Serial.println("We have failed to connect to the server; there is nothin more we will do.");
-    }
-    do_beacon_connect = false;
-  }
-  // If we are connected to a peer BLE Server, update the characteristic each time we are reached
-  // with the current time since boot.
+  checkBLE();
   if (beacon_connected) {
-    String newValue = "Time since boot: " + String(millis()/1000);
-    Serial.println("Setting new characteristic value to \"" + newValue + "\"");
-    
-    // Set the characteristic's value to be the array of bytes that is actually a string.
-    pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
+    pRemoteCharacteristic->writeValue(command.c_str(), command.length());
+    pClient->disconnect();
   }
 }
