@@ -180,21 +180,21 @@ class ServerController:
                         self.model_env_estimator(beacon, message['station'])
                     if self.state == self.State.WORKING:
                         self.working_state_handler(beacon['ID'], int(beacon['RSSI']), message['station'])
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     def model_env_estimator(self, beacon, station):
         if self.model_sample_counter > self.MODEL_MAX_SAMPLE:
             logger.info("sampling done", distance=self.current_distance)
             os._exit(1)
         beacon.update({'station': station, 'distance': self.current_distance})
-        self.append_in_file("env_model.csv", beacon)
+        self.append_in_file("env_model.csv", beacon, ['ID','RSSI','station', 'distance'])
         self.model_sample_counter += 1
 
-    def append_in_file(self, file_name, content):
+    def append_in_file(self, file_name, content, fieldnames):
         try:
             file_exists = os.path.isfile(file_name)
             with open(file_name, "a") as file:
-                writer = csv.DictWriter(file, fieldnames=['ID','RSSI','station', 'distance'])
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
                 if not file_exists:
                     writer.writeheader()
                 writer.writerow(content)
@@ -210,9 +210,11 @@ class ServerController:
         beacon = self.find_beacon_by_id(beacon_id)
         beacon['stations'][station] = beacon_rssi
         logger.info("beacon updated", beacons=self.beacons)
-    
+        self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station}, ['ID','RSSI','station'])
+
     def check_stations(self, beacon):
-        ...
+        if beacon['stations']:
+            pass
 
     def find_beacon_by_id(self, beacon_id):
         for beacon in self.beacons:
