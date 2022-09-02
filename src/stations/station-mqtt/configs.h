@@ -6,7 +6,7 @@ const char* ssid = "ArmPoc";
 const char* password = "a135246789";
 
 // MATT server and port
-const char* mqtt_server = "192.168.247.77";
+const char* mqtt_server = "192.168.252.77";
 const int mqtt_port = 1883;
 
 const char* station_id = "1";
