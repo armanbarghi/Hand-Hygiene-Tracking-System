@@ -1,19 +1,9 @@
-#include "sys/time.h"
-
 #include <Arduino.h>
 
 #include "BLEDevice.h"
 #include "BLEUtils.h"
 #include "BLEBeacon.h"
 #include "BLEAdvertising.h"
-
-#include "esp_sleep.h"
-
-#define GPIO_DEEP_SLEEP_DURATION 0.5     // sleep x seconds and then wake up
-RTC_DATA_ATTR static time_t last;    // remember last boot in RTC Memory
-RTC_DATA_ATTR static uint32_t bootcount; // remember number of boots in RTC Memory
-time_t lastTenth;
-struct timeval nowTimeStruct;
 
 BLEServer *pServer = NULL;
 
@@ -53,14 +43,9 @@ void setup()
 {
   Serial.begin(115200);
 
-  gettimeofday(&nowTimeStruct, NULL);
-  Serial.printf("start ESP32 %d\n", bootcount++);
-  Serial.printf("deep sleep (%lds since last reset, %lds since last boot)\n", nowTimeStruct.tv_sec, nowTimeStruct.tv_sec - last);
-  last = nowTimeStruct.tv_sec;
-  lastTenth = nowTimeStruct.tv_sec * 10; // Time since last reset as 0.1 second resolution counter
-
   // Create the BLE Device
-  BLEDevice::init("Project");
+  BLEDevice::init("Haylou GT1 XR");
+
   // Set the Tx Power Level to 9dbm
   BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_ADV);
 
@@ -76,7 +61,6 @@ void setup()
                                             CHARACTERISTIC_UUID_RX,
                                             BLECharacteristic::PROPERTY_WRITE
                                         );
- 
   pRxCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
 
   // Start the service
@@ -84,25 +68,21 @@ void setup()
   
   // Start advertising
   pServer->getAdvertising()->start();
-  Serial.println("Waiting a client connection to notify...");
-
-//  Serial.printf("enter deep sleep for 10s\n");
-//  esp_deep_sleep(1000000LL * GPIO_DEEP_SLEEP_DURATION);
-//  Serial.printf("in deep sleep\n");
+  Serial.println("Beacon initialized...");
 }
 
 void loop()
 {
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {
+        Serial.println("Disconnected!");
         delay(500); // give the bluetooth stack the chance to get things ready
         pServer->startAdvertising(); // restart advertising
-        Serial.println("start advertising");
+        Serial.println("Start advertising");
         oldDeviceConnected = deviceConnected;
     }
     // connecting
     if (deviceConnected && !oldDeviceConnected) {
-        // do stuff here on connecting
         Serial.println("Connected!");
         oldDeviceConnected = deviceConnected;
     }
