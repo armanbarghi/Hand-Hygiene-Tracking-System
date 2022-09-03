@@ -21,7 +21,10 @@ class ServerController:
     MAX_SERIAL_BUFFER_LEN = 100
     HEAD = b'HEAD'
     FOOT = b'FOOT'
-    MODEL_MAX_SAMPLE = 10
+    MODEL_MAX_SAMPLE = 50
+    PATH_LOSS_EXPONENT = 2.93804239444299
+    INITIAL_DISTANCE = 0.5
+    INITIAL_RSSI = -40.411764705882355
 
     class State(Enum):
         IDLE = auto()
@@ -40,35 +43,28 @@ class ServerController:
 
         # ENV_MODEL state fields
         self.model_sample_counter = 0
-        self.current_distance = 2
+        self.current_distance = 1
         ########################
 
         # WORKING state fields
         self.beacons = []
+        self.stations = {
+            '1': (0.5,0.5),
+            '2': (2,3),
+            '3': (2,5),
+            '4': (6,8)
+        }
         ######################
 
         self.queue = Queue()
         self.data_lst = []
 
-        ### MQTT section
+    # region mqtt
+    def start_mqtt(self):
         self.client = mqtt.Client('Gateway')
         self.initialize_client()
         self.client.loop_start()
 
-        ### Serial section
-        self.rx_buffer = b''
-        self.ser_ready = False
-        self.ser = None
-        self.initialize_serial()
-        serial_recieve_thread = threading.Thread(
-            target=self._serial_recieve,
-            daemon=True
-        )
-        serial_recieve_thread.start()
-
-        self.queue_handler()
-
-    # region mqtt
     def initialize_client(self):
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
@@ -117,6 +113,17 @@ class ServerController:
     # endregion mqtt
 
     # region serial
+    def start_serial(self):
+        self.rx_buffer = b''
+        self.ser_ready = False
+        self.ser = None
+        self.initialize_serial()
+        serial_recieve_thread = threading.Thread(
+            target=self._serial_recieve,
+            daemon=True
+        )
+        serial_recieve_thread.start()
+
     def initialize_serial(self):
         attempts = 0
         try:
@@ -171,7 +178,7 @@ class ServerController:
             logger.error("decoding message failed", error=error)
     # endregion serial
 
-    def queue_handler(self):
+    def start(self):
         while True:
             if not self.queue.empty():
                 message = self.queue.get()
@@ -183,11 +190,11 @@ class ServerController:
             time.sleep(0.1)
 
     def model_env_estimator(self, beacon, station):
-        if self.model_sample_counter > self.MODEL_MAX_SAMPLE:
+        if self.model_sample_counter >= self.MODEL_MAX_SAMPLE:
             logger.info("sampling done", distance=self.current_distance)
             os._exit(1)
         beacon.update({'station': station, 'distance': self.current_distance})
-        self.append_in_file("env_model.csv", beacon, ['ID','RSSI','station', 'distance'])
+        self.append_in_file("env_model.csv", beacon, ['ID','RSSI','station','distance'])
         self.model_sample_counter += 1
 
     def append_in_file(self, file_name, content, fieldnames):
@@ -203,18 +210,40 @@ class ServerController:
             logger.error("can not write in file", error=error)
 
     def working_state_handler(self, beacon_id, beacon_rssi, station):
-        # if beacon_id == 'Haylou GT1 XR':
-        #     self.data_lst.append(beacon_rssi)
         if self.find_beacon_by_id(beacon_id) is None:
             self.add_new_beacon(beacon_id)
         beacon = self.find_beacon_by_id(beacon_id)
-        beacon['stations'][station] = beacon_rssi
+        distance = self.convert_rssi_to_distance(beacon_rssi)
+        beacon['stations'][station] = distance
+        if self.is_ready_to_trilateration(beacon):
+            coordinates = self.calc_trilateration(beacon)
+            beacon['coordinates'] = coordinates
+            self.update_beacon_status(beacon)    
         logger.info("beacon updated", beacons=self.beacons)
-        self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station}, ['ID','RSSI','station'])
+        # self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station}, ['ID','RSSI','station'])
 
-    def check_stations(self, beacon):
-        if beacon['stations']:
-            pass
+    def update_beacon_status(self, beacon):
+        pass
+
+    def convert_rssi_to_distance(self, rssi):
+        return self.INITIAL_DISTANCE*10**( (self.INITIAL_RSSI-rssi) / 10 / self.PATH_LOSS_EXPONENT )
+
+    def is_ready_to_trilateration(self, beacon):
+        return not None in list(beacon['stations'].values())
+
+    def calc_trilateration(self, beacon):
+        tri_distance = sorted(beacon['stations'].items(), key=lambda x:x[1])[:3]
+        xa, ya = self.stations[tri_distance[0][0]]
+        xb, yb = self.stations[tri_distance[1][0]]
+        xc, yc = self.stations[tri_distance[2][0]]
+        ra = tri_distance[0][1]
+        rb = tri_distance[1][1]
+        rc = tri_distance[2][1] 
+        S = (pow(xc,2)-pow(xb,2)+pow(yc,2)-pow(yb,2)+pow(rb,2)-pow(rc,2))/2.0
+        T = (pow(xa,2)-pow(xb,2)+pow(ya,2)-pow(yb,2)+pow(rb,2)-pow(ra,2))/2.0
+        y = ((T*(xb-xc))-(S*(xb-xa))) / (((ya-yb)*(xb-xc))-((yc-yb)*(xb-xa)))
+        x = ((y*(ya-yb))-T) / (xb-xa)
+        return (x, y)
 
     def find_beacon_by_id(self, beacon_id):
         for beacon in self.beacons:
@@ -234,11 +263,14 @@ class ServerController:
     # region sending message to beacon
     def send_message_to_beacon(self, beacon, message):
         station = self.find_nearest_station_to_beacon(beacon)
-        self.publish('esp32/'+str(station), message)
+        self.publish('esp32/'+station, message)
 
     def find_nearest_station_to_beacon(self, beacon):
-        # return min(beacon['stations'])
-        return 1
+        new_list = []
+        for st in list(beacon['stations'].items()):
+            if not st[1] is None:
+                new_list.append(st)
+        return sorted(new_list, key=lambda x:x[1])[0][0]
     
     def publish(self, topic, message):
         payload = message.encode('utf-8')
