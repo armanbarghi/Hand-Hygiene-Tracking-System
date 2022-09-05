@@ -7,7 +7,9 @@ logger = structlog.get_logger(__name__)
 
 def main():
     try:
-        server = Server(Server.State.WORKING)
+        # server = Server(Server.State.ENV_MODEL)
+        # server = Server(Server.State.WORKING)
+        server = Server(Server.State.MONITOR)
         server.start_mqtt()
         # server.start_serial()
         server.start()
