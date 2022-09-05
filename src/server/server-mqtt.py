@@ -29,7 +29,7 @@ def on_message(client, userdata, msg):
     message = json.loads(decoded)
     logger.info('decoded data', topic=msg.topic, message=message)
     for beacon in message['beacons']:
-        if beacon['ID'] == 'Haylou GT1 XR':
+        if beacon['ID'] == 'B01':
             data_lst.append(int(beacon['RSSI']))
 
 def on_connect(clinet, userdata, flags, rc):
