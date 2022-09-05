@@ -1,3 +1,4 @@
+from .kalman import KalmanFilter
 from queue import Queue
 import paho.mqtt.client as mqtt
 import serial.tools.list_ports as port_list
@@ -58,6 +59,8 @@ class ServerController:
 
         self.queue = Queue()
         self.data_lst = []
+
+        self.KF = KalmanFilter(1, 1, 1, 1, 0.1, 0.1)
 
     # region mqtt
     def start_mqtt(self):
@@ -194,14 +197,14 @@ class ServerController:
             logger.info("sampling done", distance=self.current_distance)
             os._exit(1)
         beacon.update({'station': station, 'distance': self.current_distance})
-        self.append_in_file("env_model.csv", beacon, ['ID','RSSI','station','distance'])
+        self.append_in_file("env_model.csv", beacon)
         self.model_sample_counter += 1
 
-    def append_in_file(self, file_name, content, fieldnames):
+    def append_in_file(self, file_name: str, content: dict):
         try:
             file_exists = os.path.isfile(file_name)
             with open(file_name, "a") as file:
-                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer = csv.DictWriter(file, fieldnames=content.keys())
                 if not file_exists:
                     writer.writeheader()
                 writer.writerow(content)
@@ -216,11 +219,14 @@ class ServerController:
         distance = self.convert_rssi_to_distance(beacon_rssi)
         beacon['stations'][station] = distance
         if self.is_ready_to_trilateration(beacon):
-            coordinates = self.calc_trilateration(beacon)
+            prediction = self.KF.predict()
+            measured = self.calc_trilateration(beacon)
+            coordinates = self.KF.update(measured)
             beacon['coordinates'] = coordinates
-            self.update_beacon_status(beacon)    
+            self.update_beacon_status(beacon)
+            self.append_in_file("kalman.csv", {'Measured':measured, 'Prediction':prediction, 'Coordinated':coordinates})
         logger.info("beacon updated", beacons=self.beacons)
-        # self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station}, ['ID','RSSI','station'])
+        # self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station})
 
     def update_beacon_status(self, beacon):
         pass
