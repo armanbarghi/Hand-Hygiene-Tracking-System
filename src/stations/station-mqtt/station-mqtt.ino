@@ -49,6 +49,13 @@ BLEClient* pClient = NULL;
 String command;
 char beacon_to_connect_name[20];
 
+bool isKnownBeacon(const char* name) {
+  if(strcmp(name, "B01") == 0 || strcmp(name, "B02") == 0 || strcmp(name, "B03") == 0 || strcmp(name, "B04") == 0 || strcmp(name, "B05") == 0) {
+    return true;
+  }
+  return false;
+}
+
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice *advertisedDevice)
@@ -60,7 +67,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       }
       if (advertisedDevice->haveName()) {
         if (advertisedDevice->haveRSSI()) {
-          if (strcmp(advertisedDevice->getName().c_str(), "Haylou GT1 XR") == 0) {
+          if (isKnownBeacon(advertisedDevice->getName().c_str())) {
             itoa(advertisedDevice->getRSSI(), rssi_string, 10);
             buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
             strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
@@ -114,7 +121,7 @@ void MyMqttDeviceCallback(char* topic, byte* message, unsigned int length) {
     }
   }
   else if (strcmp(topic, temp_topic) == 0) {
-    strcpy(beacon_to_connect_name, "Haylou GT1 XR");
+    strcpy(beacon_to_connect_name, "B01");
     find_beacon = true;
     
     command = messageTemp;
