@@ -44,7 +44,7 @@ void setup()
   Serial.begin(115200);
 
   // Create the BLE Device
-  BLEDevice::init("Haylou GT1 XR");
+  BLEDevice::init("B01");
 
   // Set the Tx Power Level to 9dbm
   BLEDevice::setPower(ESP_PWR_LVL_P7, ESP_BLE_PWR_TYPE_ADV);
