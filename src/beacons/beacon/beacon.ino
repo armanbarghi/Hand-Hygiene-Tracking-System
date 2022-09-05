@@ -13,6 +13,10 @@ bool oldDeviceConnected = false;
 #define SERVICE_UUID  "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 
+#define LED_GREEN 15
+#define LED_ORANGE 17
+#define LED_RED 4
+
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
@@ -42,6 +46,9 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
 void setup()
 {
   Serial.begin(115200);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_ORANGE, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
 
   // Create the BLE Device
   BLEDevice::init("B01");
