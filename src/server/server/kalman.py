@@ -1,9 +1,10 @@
-# This class is authered by:
-# https://machinelearningspace.com/2d-object-tracking-using-kalman-filter/
+# https://github.com/RahmadSadli/2-D-Kalman-Filter
+# Author            : Rahmad Sadli
+# Date created      : 20/02/2020
 
 import numpy as np
 
-class KalmanFilter:
+class KalmanFilter2D(object):
     def __init__(self, dt, u_x, u_y, std_acc, x_std_meas, y_std_meas):
         """
         :param dt: sampling time (time for 1 cycle)
@@ -31,7 +32,7 @@ class KalmanFilter:
 
         # Define the Control Input Matrix B
         self.B = np.matrix([[(self.dt**2)/2, 0],
-                            [0, (self.dt**2)/2],
+                            [0,(self.dt**2)/2],
                             [self.dt,0],
                             [0,self.dt]])
 
@@ -51,7 +52,7 @@ class KalmanFilter:
 
         #Initial Covariance Matrix
         self.P = np.eye(self.A.shape[1])
-    
+
     def predict(self):
         # Refer to :Eq.(9) and Eq.(10)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
 
@@ -66,7 +67,6 @@ class KalmanFilter:
 
     def update(self, z):
         # Refer to :Eq.(11), Eq.(12) and Eq.(13)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
-        
         # S = H*P*H'+R
         S = np.dot(self.H, np.dot(self.P, self.H.T)) + self.R
 
@@ -81,3 +81,62 @@ class KalmanFilter:
         # Update error covariance matrix
         self.P = (I - (K * self.H)) * self.P   #Eq.(13)
         return self.x[0:2]
+
+class KalmanFilter1D(object):
+    def __init__(self, u_x, std_acc, std_meas):
+        """
+        :param u_x: acceleration
+        :param std_acc: process noise magnitude
+        :param std_meas: standard deviation of the measurement
+        """
+
+        # Define the  control input variables
+        self.u = u_x
+
+        # Intial State
+        self.x = 0
+
+        # Define the State Transition Matrix A
+        self.A = 1
+
+        # Define the Control Input Matrix B
+        self.B = 0
+
+        # Define Measurement Mapping Matrix
+        self.H = 1
+
+        #Initial Process Noise Covariance
+        self.Q = std_acc**2
+
+        #Initial Measurement Noise Covariance
+        self.R = std_meas**2
+
+        #Initial Covariance Matrix
+        self.P = 1
+
+    def predict(self):
+        # Refer to :Eq.(9) and Eq.(10)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
+
+        # Update time state
+        # x_k = Ax_(k-1) + Bu_(k-1)     Eq.(9)
+        self.x = self.A * self.x + self.B * self.u
+
+        # Calculate error covariance
+        # P = A*P*A' + Q               Eq.(10)
+        self.P = self.A * self.P * self.A + self.Q
+        return self.x
+
+    def update(self, z):
+        # Refer to :Eq.(11), Eq.(12) and Eq.(13)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
+        # S = H*P*H'+R
+        S = self.H * self.P * self.H + self.R
+
+        # Calculate the Kalman Gain
+        # K = P * H'* inv(H*P*H'+R)
+        K = self.P * self.H / S  #Eq.(11)
+
+        self.x = self.x + K * (z - self.H * self.x)   #Eq.(12)
+
+        # Update error covariance matrix
+        self.P = (1 - (K * self.H)) * self.P   #Eq.(13)
+        return self.x
