@@ -72,6 +72,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
             buffer[buffer_index].rssi = advertisedDevice->getRSSI();  
             strcpy(buffer[buffer_index].name, advertisedDevice->getName().c_str());
             buffer_index++;
+            BLEDevice::getScan()->stop(); // Remove this for multi scanning
           }
         }
         if (find_beacon) {
@@ -294,6 +295,7 @@ void loop()
     Serial.print("looking for beacon:");
     Serial.println(beacon_to_connect_name);
   }
+  delay(100);
   scanBeacons();
 
   checkWifi();
