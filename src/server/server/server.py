@@ -1,4 +1,5 @@
-from .kalman import KalmanFilter
+from .kalman import KalmanFilter2D, KalmanFilter1D
+from .moving_average import StreamingMovingAverage
 from queue import Queue
 import paho.mqtt.client as mqtt
 import serial.tools.list_ports as port_list
@@ -22,14 +23,15 @@ class ServerController:
     MAX_SERIAL_BUFFER_LEN = 100
     HEAD = b'HEAD'
     FOOT = b'FOOT'
-    MODEL_MAX_SAMPLE = 50
-    PATH_LOSS_EXPONENT = 2.93804239444299
+    MODEL_MAX_SAMPLE = 200
+    PATH_LOSS_EXPONENT = 2.4852
     INITIAL_DISTANCE = 0.5
-    INITIAL_RSSI = -40.411764705882355
+    INITIAL_RSSI = -34
 
     class State(Enum):
         IDLE = auto()
         ENV_MODEL = auto()
+        MONITOR = auto()
         WORKING = auto()
     
     class Beacon(Enum):
@@ -44,23 +46,23 @@ class ServerController:
 
         # ENV_MODEL state fields
         self.model_sample_counter = 0
-        self.current_distance = 1
+        self.current_distance = 0.5
         ########################
 
         # WORKING state fields
         self.beacons = []
         self.stations = {
-            '1': (0.5,0.5),
-            '2': (2,3),
-            '3': (2,5),
-            '4': (6,8)
+            '1': (0.25,0),
+            '2': (3.5,0),
+            '3': (6.5,0.25),
+            '4': (6.25,5.5)
         }
         ######################
 
         self.queue = Queue()
         self.data_lst = []
 
-        self.KF = KalmanFilter(1, 1, 1, 1, 0.1, 0.1)
+        self.initial_filters()
 
     # region mqtt
     def start_mqtt(self):
@@ -181,36 +183,44 @@ class ServerController:
             logger.error("decoding message failed", error=error)
     # endregion serial
 
+    def initial_filters(self):
+        self.KF = KalmanFilter2D(
+            dt=0.1, 
+            u_x=1, 
+            u_y=1, 
+            std_acc=1, 
+            x_std_meas=0.1, 
+            y_std_meas=0.1
+        )
+
+        self.KF1D = KalmanFilter1D(
+            u_x=1, 
+            std_acc=0.5, 
+            std_meas=1
+        )
+
+        self.SMA = StreamingMovingAverage(window_size=5)
+
     def start(self):
         while True:
             if not self.queue.empty():
                 message = self.queue.get()
                 for beacon in message['beacons']:
                     if self.state == self.State.ENV_MODEL:
-                        self.model_env_estimator(beacon, message['station'])
-                    if self.state == self.State.WORKING:
+                        self.model_env_handler(beacon, message['station'])
+                    elif self.state == self.State.WORKING:
                         self.working_state_handler(beacon['ID'], int(beacon['RSSI']), message['station'])
-            time.sleep(0.1)
+                    elif self.state == self.State.MONITOR:
+                        self.monitor_handler(int(beacon['RSSI']))
+            time.sleep(0.01)
 
-    def model_env_estimator(self, beacon, station):
+    def model_env_handler(self, beacon, station):
         if self.model_sample_counter >= self.MODEL_MAX_SAMPLE:
             logger.info("sampling done", distance=self.current_distance)
             os._exit(1)
         beacon.update({'station': station, 'distance': self.current_distance})
         self.append_in_file("env_model.csv", beacon)
         self.model_sample_counter += 1
-
-    def append_in_file(self, file_name: str, content: dict):
-        try:
-            file_exists = os.path.isfile(file_name)
-            with open(file_name, "a") as file:
-                writer = csv.DictWriter(file, fieldnames=content.keys())
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerow(content)
-                file.close()
-        except Exception as error:
-            logger.error("can not write in file", error=error)
 
     def working_state_handler(self, beacon_id, beacon_rssi, station):
         if self.find_beacon_by_id(beacon_id) is None:
@@ -227,6 +237,16 @@ class ServerController:
             self.append_in_file("kalman.csv", {'Measured':measured, 'Prediction':prediction, 'Coordinated':coordinates})
         logger.info("beacon updated", beacons=self.beacons)
         # self.append_in_file("stations.csv", {'ID':beacon_id, 'RSSI':beacon_rssi, 'station':station})
+
+    def monitor_handler(self, beacon_rssi):
+        if self.model_sample_counter >= self.MODEL_MAX_SAMPLE:
+            logger.info("monitoring done")
+            os._exit(1)
+        self.KF1D.predict()
+        kf_rssi = self.KF1D.update(beacon_rssi)
+        sma_rssi = self.SMA.process(beacon_rssi)
+        self.append_in_file("monitor.csv", {'RSSI': beacon_rssi, 'KF': kf_rssi, 'SMA': sma_rssi})
+        self.model_sample_counter += 1
 
     def update_beacon_status(self, beacon):
         pass
@@ -265,6 +285,18 @@ class ServerController:
             'coordinates': (None,None) 
         }
         self.beacons.append(beacon)
+
+    def append_in_file(self, file_name: str, content: dict):
+        try:
+            file_exists = os.path.isfile(file_name)
+            with open(file_name, "a") as file:
+                writer = csv.DictWriter(file, fieldnames=content.keys())
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(content)
+                file.close()
+        except Exception as error:
+            logger.error("can not write in file", error=error)
 
     # region sending message to beacon
     def send_message_to_beacon(self, beacon, message):
