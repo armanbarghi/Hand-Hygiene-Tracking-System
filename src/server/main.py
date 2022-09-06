@@ -1,8 +1,11 @@
 from server.server import ServerController as Server
 import structlog
+import logging
 import sys
 
-
+structlog.configure(
+    wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG)
+)
 logger = structlog.get_logger(__name__)
 
 def main():
