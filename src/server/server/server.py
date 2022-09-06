@@ -199,7 +199,7 @@ class ServerController:
             std_meas=1
         )
 
-        self.SMA = StreamingMovingAverage(window_size=5)
+        self.SMA = StreamingMovingAverage(window_size=10)
 
     def start(self):
         while True:
@@ -226,7 +226,7 @@ class ServerController:
         if self.find_beacon_by_id(beacon_id) is None:
             self.add_new_beacon(beacon_id)
         beacon = self.find_beacon_by_id(beacon_id)
-        distance = self.convert_rssi_to_distance(beacon_rssi)
+        distance = self.convert_rssi_to_distance(self.SMA.process(beacon_rssi))
         beacon['stations'][station] = distance
         if self.is_ready_to_trilateration(beacon):
             prediction = self.KF.predict()
@@ -265,11 +265,21 @@ class ServerController:
         ra = tri_distance[0][1]
         rb = tri_distance[1][1]
         rc = tri_distance[2][1] 
-        S = (pow(xc,2)-pow(xb,2)+pow(yc,2)-pow(yb,2)+pow(rb,2)-pow(rc,2))/2.0
-        T = (pow(xa,2)-pow(xb,2)+pow(ya,2)-pow(yb,2)+pow(rb,2)-pow(ra,2))/2.0
-        y = ((T*(xb-xc))-(S*(xb-xa))) / (((ya-yb)*(xb-xc))-((yc-yb)*(xb-xa)))
-        x = ((y*(ya-yb))-T) / (xb-xa)
-        return (x, y)
+        A1 = 2*(xb-xa)
+        A2 = 2*(xc-xa)
+        A3 = 2*(xc-xb)
+        B1 = 2*(yb-ya)
+        B2 = 2*(yc-ya)
+        B3 = 2*(yc-yb)
+        C1 = ra**2 - rb**2 + xb**2 - xa**2 + yb**2 - ya**2
+        C2 = ra**2 - rc**2 + xc**2 - xa**2 + yc**2 - ya**2
+        C3 = rb**2 - rc**2 + xc**2 - xb**2 + yc**2 - yb**2
+        S = np.linalg.inv([
+            [A1**2 + A2**2 + A3**2 , A1*B1 + A2*B2 + A3*B3],
+            [A1*B1 + A2*B2 + A3*B3 , B1**2 + B2**2 + B3**2]
+        ])
+        T = [ [A1*C1 + A2*C2 + A3*C3] , [B1*C1 + B2*C2 + B3*C3] ]
+        return tuple(np.dot(S, T).reshape(1,-1)[0])
 
     def find_beacon_by_id(self, beacon_id):
         for beacon in self.beacons:
