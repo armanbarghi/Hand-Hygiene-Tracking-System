@@ -111,7 +111,7 @@ class ServerController:
     def _on_message(self, client, userdata, msg):
         try:
             decoded = msg.payload.decode('utf-8')
-            logger.info('decoded data', topic=msg.topic, decoded=decoded)
+            logger.debug('decoded data', topic=msg.topic, decoded=decoded)
             self.queue.put(json.loads(decoded))
         except Exception as error:
             logger.error("decoding message failed", error=error)
@@ -177,7 +177,7 @@ class ServerController:
         self.rx_buffer = self.rx_buffer[footer_index+len(self.FOOT):]
         try:
             decoded = serial_data.decode('utf-8')
-            logger.info("serial read", decoded=decoded)
+            logger.debug("serial read", decoded=decoded)
             self.queue.put(json.loads(decoded))   
         except Exception as error:
             logger.error("decoding message failed", error=error)
