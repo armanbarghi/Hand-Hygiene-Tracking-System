@@ -12,6 +12,7 @@ import csv
 import os
 import threading
 import structlog
+import numpy as np
 from enum import Enum, auto
 
 
