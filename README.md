@@ -30,7 +30,7 @@ Test the installation:
 ```sh
 mosquitto -v
 ```
-With just use of mqtt code, the sketch uses 52% of program storage space and using ble scanner example from the original library, will uses 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino) that only uses 42% of program storage space.
+With just the MQTT code, the sketch uses 52% of program storage space, and using ble scanner example from the original library will use 78% of program storage space. So, we can't use ble and wifi at the same time. As an alternative solution we use another library from [here](https://github.com/h2zero/NimBLE-Arduino) that only uses 42% of program storage space.
 
 If the connection to the MQTT server is refused, check the configuration file:
 ```sh
@@ -50,15 +50,30 @@ sudo systemctl restart mosquitto.service
 Installation
 ------------
 
-First of all we need to create a virtual environment:
+Step 1. Create a virtual environment.
 ```sh
-python3 -m venv venv
+python3 -m venv myvenv
 ```
-Then we will install all the requierments libraries:
+Step 2. Activate the virtual environment (you can activate venv just by reopening the terminal instead of following commands).
 ```sh
-pip3 install -r requierments.txt
+# For Linux
+source myvenv/bin/activate
+# For Windows
+./myvenv/Scripts/activate
 ```
-Then we need to install the ipython kernel for jupyter-notebook:
+Step 3. After activating your virtual environment, install the ipykernel for Jupyter Notebook.
 ```sh
-ipython kernel install --user --name=venv
+pip3 install ipykernel
+```
+Step 4. (Optional) You can create a new kernel by the following command or just skip this step and select 'myvenv' kernel in the step 7.
+```sh
+python3 -m ipykernel install --user --name=myproject
+```
+Step 5. Open a jupyter-notebook in VS Code by holding 'Ctrl+Shift+P' and selecting 'Create: New Jupyter Notebook'.
+Step 6. Select your kernel
+- The one you created in Step 4.
+- Or just use this one: Python Environments ->  myvenv (Python)
+Step 7. Then, install all the required libraries specified in the 'requirements.txt' file.
+```sh
+pip3 install -r requirements.txt
 ```
